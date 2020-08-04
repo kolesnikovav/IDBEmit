@@ -5,6 +5,10 @@ using IDBEmit;
 
 namespace consumer
 {
+    public enum VAT
+    {
+        tax10, tax20
+    }
     [ClientStorage("Category")]
     public class GoodsCategory
     {
@@ -21,6 +25,7 @@ namespace consumer
         public string Name {get;set;}
         public GoodsCategory Category {get;set;}
         public decimal Price {get;set;}
+        public VAT VAT {get;set;}
     }
     [ClientStorage("Barcodes")]
     public class GoodsBarcode
