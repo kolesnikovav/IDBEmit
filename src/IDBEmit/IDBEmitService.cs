@@ -10,12 +10,33 @@ namespace IDBEmit
 {
     public class DBEmitService<T> where T:DbContext
     {
+        /// <summary>
+        /// root path for created types folder
+        /// </summary>
         private string _rootPath;
+        /// <summary>
+        /// IndexedDB database name
+        /// </summary>
         private string _storageName;
+        /// <summary>
+        /// referenced enums
+        /// </summary>
         private readonly List<Type> _enumTypes = new List<Type>();
+        /// <summary>
+        /// keep references for key Type
+        /// </summary>
         private readonly Dictionary<Type, List<Type>> _references = new Dictionary<Type, List<Type>>();
+        /// <summary>
+        /// entity types, that should be present at client side (indexeddb)
+        /// </summary>
         private readonly Dictionary<Type, ClientStorageAttribute> _injectedTypes = new Dictionary<Type, ClientStorageAttribute>();
+        /// <summary>
+        /// prepared import typescript directives for entity types and enums
+        /// </summary>
         private readonly Dictionary<Type, string> _importDirectives = new Dictionary<Type, string>();
+        /// <summary>
+        /// key fields of entities
+        /// </summary>
         private readonly Dictionary<Type, Tuple<string,Type>> _entityKeys = new Dictionary<Type, Tuple<string,Type>>();
         private static readonly Type[] _numericTypes = new Type[]
         {
@@ -50,6 +71,10 @@ namespace IDBEmit
                 throw(new IOException("Cannot create directory "+ path + " \n More details: \n" + e.Message));
             }
         }
+        /// <summary>
+        /// returns type/java script type from property type
+        /// </summary>
+        /// <param name="propertyType">Type to be converted</param>
         private string ConvertToTsType(Type propertyType)
         {
             if (propertyType == typeof(bool)) return "boolean";
@@ -116,6 +141,9 @@ namespace IDBEmit
             // res += "}\n";
             return res;
         }
+        /// <summary>
+        /// Discover DB context and fill internal datasets
+        /// </summary>
         private void GetEntityKeys()
         {
             Type dSet = typeof(DbSet<>);
@@ -167,6 +195,11 @@ namespace IDBEmit
                 _references.Add(entity.Key, localRefs);
             }
         }
+        /// <summary>
+        /// Initialize instance for DBContext and scaffold this to typescript
+        /// </summary>
+        /// <param name="rootPath">root path for created types folder. Should be in client app source folder and included in client app and including into bundling toolchain</param>
+        /// <param name="storageName">IndexedDB database name </param>
         public void Initialize(string rootPath, string storageName)
         {
             _rootPath = Path.Combine(rootPath,Utils.NormalizedName(typeof(T).ToString()));

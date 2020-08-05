@@ -27,7 +27,6 @@ namespace consumer
         public decimal Price {get;set;}
         public VAT VAT {get;set;}
     }
-    [ClientStorage("Barcodes")]
     public class GoodsBarcode
     {
         [Key]
