@@ -22,6 +22,7 @@ namespace consumer
         [Key]
         public int Id {get;set;}
         public string Code {get;set;}
+        [ClientIndex]
         public string Name {get;set;}
         public GoodsCategory Category {get;set;}
         public decimal Price {get;set;}

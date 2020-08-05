@@ -31,6 +31,10 @@ namespace IDBEmit
         /// </summary>
         private readonly Dictionary<Type, ClientStorageAttribute> _injectedTypes = new Dictionary<Type, ClientStorageAttribute>();
         /// <summary>
+        /// keep client-side indexes for injected types
+        /// </summary>
+        private readonly Dictionary<Type, Dictionary<string,bool>> _indexes = new Dictionary<Type, Dictionary<string,bool>>();
+        /// <summary>
         /// prepared import typescript directives for entity types and enums
         /// </summary>
         private readonly Dictionary<Type, string> _importDirectives = new Dictionary<Type, string>();
@@ -43,6 +47,7 @@ namespace IDBEmit
             typeof(byte), typeof(sbyte) , typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(decimal), typeof(float)
         };
         private static  Type ClientStorageAttributeType = typeof(ClientStorageAttribute);
+        private static  Type ClientIndexAttributeType = typeof(ClientIndexAttribute);
         private static Type KeyAttributeType = typeof(KeyAttribute);
 
         private void EnsurePathExists(string path)
@@ -131,15 +136,52 @@ namespace IDBEmit
         }
         private string ScaffoldDatabase()
         {
-            string t ="\t";
-            string res = "export function createDB (db, dbReq) => {\n" +
-            "";
-            // foreach(var p in enumType.GetEnumValues())
-            // {
-            //     res += t + p.ToString() + ";\n";
-            // }
-            // res += "}\n";
+            string res = "type cIndex = {\n" +
+                         "\t name: string," +
+                         "\t path: string," +
+                         "\t unique: boolean\n" +
+                         "}\n\n"; // type ts for index
+            // create object store with indexes
+            res += "const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {\n"+
+                   "\t let a = db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
+                   "\t indexes.map(v => a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
+                   "}\n\n";
+            res += "const datasets = [\n";
+            string res1 ="";
+            foreach(var p in _injectedTypes)
+            {
+                res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1 +"\n";
+                if (_indexes.ContainsKey(p.Key))
+                {
+                    res1 += "indexes: [\n";
+                    foreach(var i in _indexes[p.Key])
+                    {
+                        res1 += "\t{ name: " + i.Key + ", path: " + i.Key + ", unique: " + i.Value.ToString().ToLowerInvariant() + "}\n" ;
+
+                    }
+                    res1 += "]\n";
+                }
+                res1 += "},\n";
+            }
+            res1 = res1.Substring(0, res1.Length - 2);
+
+            res += res1 + "]\n";
+            res += "export const createDatabase = (db: IDBDatabase) => {\n"+
+                   "\t datasets.map(v => createStore(db, v.name, v.key, v.indexes)\n" +
+                   "}\n";
             return res;
+        }
+        /// <summary>
+        /// Clear internal data when it no nessesary
+        /// </summary>
+        private void ClearInternalData()
+        {
+            this._entityKeys.Clear();
+            this._enumTypes.Clear();
+            this._importDirectives.Clear();
+            this._injectedTypes.Clear();
+            this._references.Clear();
+            this._indexes.Clear();
         }
         /// <summary>
         /// Discover DB context and fill internal datasets
@@ -196,6 +238,28 @@ namespace IDBEmit
             }
         }
         /// <summary>
+        /// Discover injected types and create client side indexes
+        /// </summary>
+        private void GetIndexes()
+        {
+            foreach (var v in _injectedTypes)
+            {
+                Dictionary<string, bool> d = new Dictionary<string, bool>();
+                foreach(var p in v.Key.GetProperties())
+                {
+                    ClientIndexAttribute k = p.GetCustomAttribute(ClientIndexAttributeType) as ClientIndexAttribute;
+                    if (k != null)
+                    {
+                        d.Add(Utils.NormalizedName(p.Name), k.Unique);
+                    }
+                }
+                if (d.Count>0)
+                {
+                    _indexes.Add(v.Key,d);
+                }
+            }
+        }
+        /// <summary>
         /// Initialize instance for DBContext and scaffold this to typescript
         /// </summary>
         /// <param name="rootPath">root path for created types folder. Should be in client app source folder and included in client app and including into bundling toolchain</param>
@@ -205,6 +269,7 @@ namespace IDBEmit
             _rootPath = Path.Combine(rootPath,Utils.NormalizedName(typeof(T).ToString()));
             _storageName = storageName;
             GetEntityKeys();
+            GetIndexes();
             EnsurePathExists(rootPath);
             if (!Directory.Exists(_rootPath))
             {
@@ -235,16 +300,13 @@ namespace IDBEmit
                     file.Write(s);
                 }
             }
-            // create IndexedDB proection of inected entities
-            foreach( var q in _injectedTypes)
+            string a = ScaffoldDatabase();
+            using (System.IO.StreamWriter file =
+                   new System.IO.StreamWriter(Path.Combine(_rootPath, "database.ts"), true))
             {
-                // string s = ScaffoldEnums(q.Key);
-                // using (System.IO.StreamWriter file =
-                //        new System.IO.StreamWriter(Path.Combine(_rootPath,"enums", q.Key.ToString() + ".ts"), true))
-                // {
-                //     file.Write(s);
-                // }
+                file.Write(a);
             }
+            ClearInternalData();
         }
     }
 }
