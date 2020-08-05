@@ -58,14 +58,14 @@ namespace IDBEmit
             if (propertyType.IsEnum)
             {
                 if (!_enumTypes.Contains(propertyType)) _enumTypes.Add(propertyType);
-                return propertyType.ToString();
+                return Utils.NormalizedName(propertyType.ToString());
             }
             else if (propertyType.IsClass && _entityKeys.ContainsKey(propertyType))
             {
                 // add reference type or key of reference
                 if ( _entityKeys[propertyType] != null)
                 {
-                    return propertyType.ToString() + "|" + ConvertToTsType(_entityKeys[propertyType].Item2);
+                    return Utils.NormalizedName(propertyType.ToString()) + "|" + ConvertToTsType(_entityKeys[propertyType].Item2);
                 }
                 else
                 {
@@ -83,7 +83,7 @@ namespace IDBEmit
             {
                 res += _importDirectives[r] + "\n";
             }
-            res += "export interface "+entityType.ToString()+" {\n";
+            res += "export class "+Utils.NormalizedName(entityType.ToString())+" {\n";
             foreach(var p in entityType.GetProperties())
             {
                 bool isKey = _entityKeys.ContainsKey(p.PropertyType) && _entityKeys[p.PropertyType].Item1 == p.Name;
@@ -95,12 +95,25 @@ namespace IDBEmit
         private string ScaffoldEnums(Type enumType)
         {
             string t ="\t";
-            string res = "export enum "+enumType.ToString()+" {\n";
+            string res = "export enum "+Utils.NormalizedName(enumType.ToString())+" {\n";
             foreach(var p in enumType.GetEnumValues())
             {
-                res += t + p.ToString() + ";\n";
+                res += t + Utils.NormalizedName(p.ToString()) + ",\n";
             }
+            res = res.Substring(0,res.Length - 2) + "\n";
             res += "}\n";
+            return res;
+        }
+        private string ScaffoldDatabase()
+        {
+            string t ="\t";
+            string res = "export function createDB (db, dbReq) => {\n" +
+            "";
+            // foreach(var p in enumType.GetEnumValues())
+            // {
+            //     res += t + p.ToString() + ";\n";
+            // }
+            // res += "}\n";
             return res;
         }
         private void GetEntityKeys()
@@ -111,8 +124,9 @@ namespace IDBEmit
                 if (p.PropertyType.IsGenericType)
                 {
                     Type entityType = p.PropertyType.GenericTypeArguments[0];
-                    ClientStorageAttribute c = entityType.GetCustomAttributes(ClientStorageAttributeType) as ClientStorageAttribute;
-                    _importDirectives.Add(entityType, "import { " + entityType.ToString() + " } from '" + Path.Combine("types", entityType.ToString() + "'"));
+                    ClientStorageAttribute c = entityType.GetCustomAttribute(ClientStorageAttributeType) as ClientStorageAttribute;
+                    _importDirectives.Add(entityType, "import { " + Utils.NormalizedName(entityType.ToString()) + " } from './" +
+                            Path.Combine("types", Utils.NormalizedName(entityType.ToString()) + "'"));
                     if (c != null)
                     {
                         _injectedTypes.Add(entityType, c);
@@ -131,7 +145,6 @@ namespace IDBEmit
                         _entityKeys.Add(entityType, null);
                     }
                 }
-
             }
             foreach (var entity in _entityKeys)
             {
@@ -146,7 +159,8 @@ namespace IDBEmit
                         }
                         if (!_importDirectives.ContainsKey(pE.PropertyType) && pE.PropertyType.IsEnum)
                         {
-                            _importDirectives.Add(pE.PropertyType, "import { " + pE.PropertyType.ToString() + " } from '" + Path.Combine("enums", pE.PropertyType.ToString() + "'"));
+                            _importDirectives.Add(pE.PropertyType, "import { " + Utils.NormalizedName(pE.PropertyType.ToString()) + " } from '../" +
+                                Path.Combine("enums", Utils.NormalizedName(pE.PropertyType.ToString()) + "'"));
                         }
                     }
                 }
@@ -155,7 +169,7 @@ namespace IDBEmit
         }
         public void Initialize(string rootPath, string storageName)
         {
-            _rootPath = Path.Combine(rootPath,typeof(T).ToString());
+            _rootPath = Path.Combine(rootPath,Utils.NormalizedName(typeof(T).ToString()));
             _storageName = storageName;
             GetEntityKeys();
             EnsurePathExists(rootPath);
@@ -174,7 +188,7 @@ namespace IDBEmit
             {
                 string s = ScaffoldTypeToTypescript(q.Key);
                 using (System.IO.StreamWriter file =
-                       new System.IO.StreamWriter(Path.Combine(_rootPath,"types", q.Key.ToString() + ".ts"), true))
+                       new System.IO.StreamWriter(Path.Combine(_rootPath,"types", Utils.NormalizedName(q.Key.ToString()) + ".ts"), true))
                 {
                     file.Write(s);
                 }
@@ -183,10 +197,20 @@ namespace IDBEmit
             {
                 string s = ScaffoldEnums(q.Key);
                 using (System.IO.StreamWriter file =
-                       new System.IO.StreamWriter(Path.Combine(_rootPath,"enums", q.Key.ToString() + ".ts"), true))
+                       new System.IO.StreamWriter(Path.Combine(_rootPath,"enums", Utils.NormalizedName(q.Key.ToString()) + ".ts"), true))
                 {
                     file.Write(s);
                 }
+            }
+            // create IndexedDB proection of inected entities
+            foreach( var q in _injectedTypes)
+            {
+                // string s = ScaffoldEnums(q.Key);
+                // using (System.IO.StreamWriter file =
+                //        new System.IO.StreamWriter(Path.Combine(_rootPath,"enums", q.Key.ToString() + ".ts"), true))
+                // {
+                //     file.Write(s);
+                // }
             }
         }
     }
