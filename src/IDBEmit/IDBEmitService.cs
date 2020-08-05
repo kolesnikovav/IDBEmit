@@ -150,10 +150,10 @@ namespace IDBEmit
             string res1 ="";
             foreach(var p in _injectedTypes)
             {
-                res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1 +"\n";
+                res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1;
                 if (_indexes.ContainsKey(p.Key))
                 {
-                    res1 += "indexes: [\n";
+                    res1 += ",\n  indexes: [\n";
                     foreach(var i in _indexes[p.Key])
                     {
                         res1 += "\t{ name: " + i.Key + ", path: " + i.Key + ", unique: " + i.Value.ToString().ToLowerInvariant() + "}\n" ;
@@ -163,7 +163,7 @@ namespace IDBEmit
                 }
                 res1 += "},\n";
             }
-            res1 = res1.Substring(0, res1.Length - 2);
+            res1 = res1.Substring(0, res1.Length - 2) + "\n";
 
             res += res1 + "]\n";
             res += "export const createDatabase = (db: IDBDatabase) => {\n"+
