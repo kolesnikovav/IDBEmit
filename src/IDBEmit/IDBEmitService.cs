@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using AutoController;
+using HandlebarsDotNet;
 
 namespace IDBEmit
 {
@@ -103,6 +105,38 @@ namespace IDBEmit
                 }
              }
             return "string";
+        }
+        private static string ScaffoldGetBackendRequest(Type entityType, string backendAddr, string backendCount)
+        {
+            string source =
+            @"public static async FetchGet (page?: number, size?: number, sort?: string, sortdirection?: boolean, filter?: string ): {{classname}}|{{classname}}[] {
+                const searchParams = new URLSearchParams()
+                if (page) searchParams.append('page', page)
+                if (size) searchParams.append('size', size)
+                if (sort) searchParams.append('sort', sort)
+                if (sortdirection) searchParams.append('sortdirection', sortdirection)
+                if (filter) searchParams.append('filter', filter)
+                const url = new URL('{{backend}}')
+                url.search = searchParams.toString()
+                const response = await fetch(url)
+                const json = await response.json()
+            }
+            public static FetchGetCount (filter?: string ): number {
+                const searchParams = new URLSearchParams()
+                if (filter) searchParams.append('filter', filter)
+                const url = new URL('{{backendCount}}')
+                const response = await fetch(url)
+                return  = Number.parse(response.body)
+            }
+            ";
+            var template = Handlebars.Compile(source);
+            var data = new
+            {
+                classname = Utils.NormalizedName(entityType.ToString()),
+                backend = backendAddr,
+                backendCount = backendCount
+            };
+            return template(data);
         }
         private string ScaffoldTypeToTypescript(Type entityType)
         {
