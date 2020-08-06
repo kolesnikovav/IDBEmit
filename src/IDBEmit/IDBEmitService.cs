@@ -143,8 +143,16 @@ namespace IDBEmit
                          "}\n\n"; // type ts for index
             // create object store with indexes
             res += "const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {\n"+
-                   "\t let a = db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
-                   "\t indexes.map(v => a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
+                   "\t let a;\n" +
+                   "\t if (!db.objectStoreNames.contains(name)) {\n" +
+                   "\t       db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
+                   "\t } else {\n" +
+                   "\t    a = dbReq.transaction.objectStore(name); \n" +
+                   "\t }\n" +
+                   "\t indexes.map(v => {\n" +
+                   "\t   if (!a.indexNames.contains(v.name)){\n" +
+                   "\t a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
+                   "\t  }"+
                    "}\n\n";
             res += "const datasets = [\n";
             string res1 ="";
@@ -165,11 +173,35 @@ namespace IDBEmit
             }
             res1 = res1.Substring(0, res1.Length - 2) + "\n";
 
-            res += res1 + "]\n";
-            res += "export const createDatabase = (db: IDBDatabase) => {\n"+
+            res += res1 + "]\n\n";
+            res += "const createDatabase = (db: IDBDatabase) => {\n"+
                    "\t datasets.map(v => createStore(db, v.name, v.key, v.indexes)\n" +
-                   "}\n";
+                   "}\n\n";
+            res += "export const database = (name: string, version: number): IDBDatabase => {\n"+
+                   "\t const dbRequest = indexedDB.open( name, version)\n" +
+                   "\t let db = dbReq.result\n" +
+                   "\t dbRequest.onupgradeneeded = ( ev ) => {\n" +
+                   "\t db = (ev.target as IDBOpenDBRequest).result\n" +
+                   "\t   createDatabase((ev.target as IDBOpenDBRequest).result)\n"+
+                   "\t}\n" +
+                   "\t dbRequest.onsuccess = (ev) => {\n db = (ev.target as IDBOpenDBRequest).result\n}\n" +
+                   "\t dbRequest.onerror = (ev) => {}\n" +
+                   "\t return db\n" +
+                   "}\n\n";
+            res +=  "export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {\n"+
+                    "\t const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()\n" +
+                    "\t  let tx = db.transaction([storeName], 'readwrite')\n" +
+                    "\t  let store = tx.objectStore(storeName)\n" +
+                    "\t  if (Array.isArray(message)) {\n" +
+                    "\t     message.map(v => store.add(v))\n" +
+                    "\t } else {\n" +
+                    "\t      store.add(message)\n" +
+                    "\t  }\n" +
+                    "\t  tx.oncomplete = () => {}\n"+
+                    "\t  tx.onerror = (event) => {}\n"+
+                    "\t}\n";
             return res;
+
         }
         /// <summary>
         /// Clear internal data when it no nessesary
@@ -262,7 +294,7 @@ namespace IDBEmit
         /// <summary>
         /// Initialize instance for DBContext and scaffold this to typescript
         /// </summary>
-        /// <param name="rootPath">root path for created types folder. Should be in client app source folder and included in client app and including into bundling toolchain</param>
+        /// <param name="rootPath">root path for created types folder. Should be in client app source folder and included in client app and including it into bundling toolchain</param>
         /// <param name="storageName">IndexedDB database name </param>
         public void Initialize(string rootPath, string storageName)
         {
