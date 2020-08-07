@@ -9,8 +9,8 @@ using consumer;
 namespace consumer.Migrations
 {
     [DbContext(typeof(ApplicationDBContext))]
-    [Migration("20200802212242_Init")]
-    partial class Init
+    [Migration("20200807094508_test1")]
+    partial class test1
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -35,6 +35,9 @@ namespace consumer.Migrations
 
                     b.Property<decimal>("Price")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("VAT")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

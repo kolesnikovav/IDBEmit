@@ -2,7 +2,7 @@
 
 namespace consumer.Migrations
 {
-    public partial class Init : Migration
+    public partial class test1 : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -28,7 +28,8 @@ namespace consumer.Migrations
                     Code = table.Column<string>(nullable: true),
                     Name = table.Column<string>(nullable: true),
                     CategoryId = table.Column<int>(nullable: true),
-                    Price = table.Column<decimal>(nullable: false)
+                    Price = table.Column<decimal>(nullable: false),
+                    VAT = table.Column<int>(nullable: false)
                 },
                 constraints: table =>
                 {

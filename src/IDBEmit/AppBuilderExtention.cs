@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using AutoController;
 
 namespace IDBEmit
 {
@@ -15,30 +16,18 @@ namespace IDBEmit
     {
         private const string LogCategoryName = "IDBEmit";
         /// <summary>
-        /// Adds IDBEmit as singletone service and register it in Dependency Injection
-        ///
-        /// </summary>
-        /// <typeparam name="T">The type of your DBContext/>.</typeparam>
-        /// <param name="services">The <see cref="IServiceCollection"/>.</param>
-        public static void AddDBEmitter<T>(this IServiceCollection services) where T: DbContext
-        {
-            services.AddSingleton(typeof(DBEmitService<T>));
-        }
-        private static DBEmitService<T> GetDBEmitService<T>(IApplicationBuilder builder) where T: DbContext
-        {
-            return (DBEmitService<T>)builder.ApplicationServices.GetService(typeof(DBEmitService<T>));
-        }
-        /// <summary>
         /// Adds IndexedDB projection of current DBContext.
         /// </summary>
         /// <typeparam name="T">The DBContext derived type</typeparam>
         /// <param name="appBuilder">The instance of ApplicationBuilder</param>
         /// <param name="indexedDBname">The name of IndexedDB</param>
         /// <param name="path">path</param>
+        /// <param name="options">Autocontroller options</param>
         public static void UseIDBEmitter<T>(
             this IApplicationBuilder appBuilder,
             string indexedDBname,
-            string path
+            string path,
+            IAutoControllerOptions options
             ) where T: DbContext
         {
             if (appBuilder == null)
@@ -46,8 +35,11 @@ namespace IDBEmit
                 throw new ArgumentNullException(nameof(appBuilder));
             }
             var logger = GetOrCreateLogger(appBuilder, LogCategoryName);
-            DBEmitService<T> emitter = GetDBEmitService<T>(appBuilder);
-            emitter.Initialize(path, indexedDBname);
+            // This is not nessesary register it as service
+            // because it should run once
+            DBEmitService<T> emitter = new DBEmitService<T>();
+            emitter.Initialize(path, indexedDBname, options);
+            //emitter.Dispose();
         }
         private static ILogger GetOrCreateLogger(
             IApplicationBuilder appBuilder,

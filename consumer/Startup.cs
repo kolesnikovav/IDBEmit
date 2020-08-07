@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Sqlite;
 using Microsoft.Extensions.Configuration;
 using System.IO;
+using AutoController;
 using IDBEmit;
 
 namespace consumer
@@ -28,7 +29,8 @@ namespace consumer
         {
             services.AddDbContext<ApplicationDBContext>(options =>
                 options.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddDBEmitter<ApplicationDBContext>();
+            services.AddAutoController<ApplicationDBContext>();
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -38,7 +40,11 @@ namespace consumer
             {
                 app.UseDeveloperExceptionPage();
             }
-            app.UseIDBEmitter<ApplicationDBContext>("clientDB", Path.Combine(Directory.GetCurrentDirectory(), "clientapp"));
+            string c = "DataSource=app.db";
+            app.UseAutoController<ApplicationDBContext>("api",true,DatabaseTypes.SQLite,c,InteractingType.JSON,"/","/");
+            var service = (AutoRouterService<ApplicationDBContext>)app.ApplicationServices.GetService(typeof(AutoRouterService<ApplicationDBContext>));
+            var opt = (IAutoControllerOptions)service.Options;
+            app.UseIDBEmitter<ApplicationDBContext>("clientDB", Path.Combine(Directory.GetCurrentDirectory(), "clientapp"), opt);
 
             app.UseRouting();
 

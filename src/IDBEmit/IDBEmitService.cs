@@ -10,8 +10,10 @@ using HandlebarsDotNet;
 
 namespace IDBEmit
 {
-    public class DBEmitService<T> where T:DbContext
+    public class DBEmitService<T>: IDisposable
+                                   where T:DbContext
     {
+        private IAutoControllerOptions _options;
         /// <summary>
         /// root path for created types folder
         /// </summary>
@@ -24,6 +26,12 @@ namespace IDBEmit
         /// referenced enums
         /// </summary>
         private readonly List<Type> _enumTypes = new List<Type>();
+        /// <summary>
+        /// import strings for index.ts
+        /// </summary>
+        private readonly List<string> _indexTS = new List<string>();
+
+        private string _exportTS = "";
         /// <summary>
         /// keep references for key Type
         /// </summary>
@@ -44,6 +52,8 @@ namespace IDBEmit
         /// key fields of entities
         /// </summary>
         private readonly Dictionary<Type, Tuple<string,Type>> _entityKeys = new Dictionary<Type, Tuple<string,Type>>();
+
+        private readonly Dictionary<Type, Dictionary<string,string>> _backendRoutes = new Dictionary<Type, Dictionary<string,string>>();
         private static readonly Type[] _numericTypes = new Type[]
         {
             typeof(byte), typeof(sbyte) , typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(decimal), typeof(float)
@@ -51,6 +61,7 @@ namespace IDBEmit
         private static  Type ClientStorageAttributeType = typeof(ClientStorageAttribute);
         private static  Type ClientIndexAttributeType = typeof(ClientIndexAttribute);
         private static Type KeyAttributeType = typeof(KeyAttribute);
+        private static  Type MapToControllerAttributeType = typeof(MapToControllerAttribute);
 
         private void EnsurePathExists(string path)
         {
@@ -106,66 +117,125 @@ namespace IDBEmit
              }
             return "string";
         }
-        private static string ScaffoldGetBackendRequest(Type entityType, string backendAddr, string backendCount)
-        {
-            string source =
-            @"public static async FetchGet (page?: number, size?: number, sort?: string, sortdirection?: boolean, filter?: string ): {{classname}}|{{classname}}[] {
-                const searchParams = new URLSearchParams()
-                if (page) searchParams.append('page', page)
-                if (size) searchParams.append('size', size)
-                if (sort) searchParams.append('sort', sort)
-                if (sortdirection) searchParams.append('sortdirection', sortdirection)
-                if (filter) searchParams.append('filter', filter)
-                const url = new URL('{{backend}}')
-                url.search = searchParams.toString()
-                const response = await fetch(url)
-                const json = await response.json()
-            }
-            public static FetchGetCount (filter?: string ): number {
-                const searchParams = new URLSearchParams()
-                if (filter) searchParams.append('filter', filter)
-                const url = new URL('{{backendCount}}')
-                const response = await fetch(url)
-                return  = Number.parse(response.body)
-            }
-            ";
-            var template = Handlebars.Compile(source);
-            var data = new
-            {
-                classname = Utils.NormalizedName(entityType.ToString()),
-                backend = backendAddr,
-                backendCount = backendCount
-            };
-            return template(data);
-        }
         private string ScaffoldTypeToTypescript(Type entityType)
         {
-            string t ="\t";
-            string res = "";
+            string source =
+@"{{import}}
+export class {{classname}} {
+    {{fields}}
+    public static async FetchGet (page?: number, size?: number, sort?: string, sortdirection?: boolean, filter?: string ): Promise<{{classname}}|{{classname}}[]|string> {
+        const searchParams = new URLSearchParams()
+        if (page) searchParams.append('page', page.toString())
+        if (size) searchParams.append('size', size.toString())
+        if (sort) searchParams.append('sort', sort)
+        if (sortdirection) searchParams.append('sortdirection', '*')
+        if (filter) searchParams.append('filter', filter)
+        const url = new URL('{{backend}}')
+        url.search = searchParams.toString()
+        const response = await fetch(url.toString())
+        return await response.json()
+    }
+
+    public static async FetchGetCount (filter?: string ): number {
+        const searchParams = new URLSearchParams()
+        if (filter) searchParams.append('filter', filter)
+        const url = new URL('{{backendCount}}')
+        const response = await fetch(url.toString())
+        return  Number.parse(response.body)
+    }
+
+    public static async FetchPost (data: {{classname}}|{{classname}}[] ): Promise<{{classname}}|{{classname}}[]|string> {
+        const url = new URL('{{backendSave}}')
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        return await response.json()
+    }
+
+    public static async FetchUpdate (data: {{classname}}|{{classname}}[] ): Promise<{{classname}}|{{classname}}[]|string> {
+        const url = new URL('{{backendUpdate}}')
+        const response = await fetch(url.toString(), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        return await response.json()
+    }
+
+    public static async FetchDelete (data: {{classname}}|{{classname}}[] ): Promise<{{classname}}|{{classname}}[]|string> {
+        const url = new URL('{{backendDelete}}')
+        const response = await fetch(url.toString(), {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        return await response.json()
+    }
+}
+";
+            string import = "";
             var localRefs = _references[entityType];
             foreach (var r in localRefs)
             {
-                res += _importDirectives[r] + "\n";
+                import += _importDirectives[r] + "\n";
             }
-            res += "export class "+Utils.NormalizedName(entityType.ToString())+" {\n";
+            string fields = "";
+            bool isFirst = true;
             foreach(var p in entityType.GetProperties())
+             {
+                 bool isKey = _entityKeys.ContainsKey(p.PropertyType) && _entityKeys[p.PropertyType].Item1 == p.Name;
+                 fields += ((isFirst) ? "" : "    ") + "public " + p.Name +  ((isKey) ? "" : "?") + " : " + ConvertToTsType(p.PropertyType) + "\n";
+                 isFirst = false;
+             };
+            string cname = Utils.NormalizedName(entityType.ToString());
+
+            var template = Handlebars.Compile(source);
+            var data = new
             {
-                bool isKey = _entityKeys.ContainsKey(p.PropertyType) && _entityKeys[p.PropertyType].Item1 == p.Name;
-                res += t + p.Name +  (isKey ? "" : "?") + " : " + ConvertToTsType(p.PropertyType) + ";\n";
-            }
-            res += "}\n";
-            return res;
+                fields = fields,
+                import = import,
+                classname = cname,
+                backend = _backendRoutes[entityType]["GET"],
+                backendCount = _backendRoutes[entityType]["GETCOUNT"],
+                backendSave = _backendRoutes[entityType]["POST"],
+                backendUpdate = _backendRoutes[entityType]["PUT"],
+                backendDelete = _backendRoutes[entityType]["DELETE"]
+            };
+            _indexTS.Add("import { " + cname + "} from './types/" + cname + "'");
+            _exportTS += cname + ",\n";
+            return template(data);
         }
         private string ScaffoldEnums(Type enumType)
         {
             string t ="\t";
-            string res = "export enum "+Utils.NormalizedName(enumType.ToString())+" {\n";
+            string cname = Utils.NormalizedName(enumType.ToString());
+            string res = "export enum "+cname+" {\n";
             foreach(var p in enumType.GetEnumValues())
             {
                 res += t + Utils.NormalizedName(p.ToString()) + ",\n";
             }
             res = res.Substring(0,res.Length - 2) + "\n";
             res += "}\n";
+            _indexTS.Add("import { " + cname + "} from './enums/" + cname + "'");
+            _exportTS += cname + ",\n";
+            return res;
+        }
+        private string ScaffoldIndexTS()
+        {
+            string res ="";
+            foreach(string s in _indexTS)
+            {
+                res += s +"\n";
+            }
+            res += "\n" + "export { " +_exportTS.Substring(0, _exportTS.Length -2) + "\n}\n";
             return res;
         }
         private string ScaffoldDatabase()
@@ -261,12 +331,25 @@ namespace IDBEmit
                 {
                     Type entityType = p.PropertyType.GenericTypeArguments[0];
                     ClientStorageAttribute c = entityType.GetCustomAttribute(ClientStorageAttributeType) as ClientStorageAttribute;
+                    MapToControllerAttribute m = entityType.GetCustomAttribute(MapToControllerAttributeType) as MapToControllerAttribute;
                     _importDirectives.Add(entityType, "import { " + Utils.NormalizedName(entityType.ToString()) + " } from './" +
-                            Path.Combine("types", Utils.NormalizedName(entityType.ToString()) + "'"));
+                            Utils.NormalizedName(entityType.ToString() + "'"));
                     if (c != null)
                     {
                         _injectedTypes.Add(entityType, c);
                     }
+                    //***************
+                    if (m != null)
+                    {
+                        Dictionary<string,string> s = new Dictionary<string, string>();
+                        s.Add("GET",_options.RoutePrefix + "/" + m.ControllerName + "/" + _options.DefaultGetAction);
+                        s.Add("GETCOUNT",_options.RoutePrefix + "/" + m.ControllerName + "/" + _options.DefaultGetCountAction);
+                        s.Add("POST",_options.RoutePrefix + "/" + m.ControllerName + "/" + _options.DefaultPostAction);
+                        s.Add("PUT",_options.RoutePrefix + "/" + m.ControllerName + "/" + _options.DefaultUpdateAction);
+                        s.Add("DELETE",_options.RoutePrefix + "/" + m.ControllerName + "/" + _options.DefaultDeleteAction);
+                        _backendRoutes.Add(entityType, s);
+                    }
+                    //***************
                     foreach (var pE in entityType.GetProperties())
                     {
                         KeyAttribute k = pE.GetCustomAttribute(KeyAttributeType) as KeyAttribute;
@@ -330,10 +413,11 @@ namespace IDBEmit
         /// </summary>
         /// <param name="rootPath">root path for created types folder. Should be in client app source folder and included in client app and including it into bundling toolchain</param>
         /// <param name="storageName">IndexedDB database name </param>
-        public void Initialize(string rootPath, string storageName)
+        public void Initialize(string rootPath, string storageName, IAutoControllerOptions options)
         {
             _rootPath = Path.Combine(rootPath,Utils.NormalizedName(typeof(T).ToString()));
             _storageName = storageName;
+            _options = options;
             GetEntityKeys();
             GetIndexes();
             EnsurePathExists(rootPath);
@@ -366,6 +450,13 @@ namespace IDBEmit
                     file.Write(s);
                 }
             }
+            string indexTS = ScaffoldIndexTS();
+            using (System.IO.StreamWriter file =
+                   new System.IO.StreamWriter(Path.Combine(_rootPath, "index.ts"), true))
+            {
+                file.Write(indexTS);
+            }
+
             string a = ScaffoldDatabase();
             using (System.IO.StreamWriter file =
                    new System.IO.StreamWriter(Path.Combine(_rootPath, "database.ts"), true))
@@ -373,6 +464,12 @@ namespace IDBEmit
                 file.Write(a);
             }
             ClearInternalData();
+        }
+        public DBEmitService() {
+        }
+        public void Dispose()
+        {
+            this.Dispose();
         }
     }
 }

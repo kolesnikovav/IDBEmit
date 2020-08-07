@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using AutoController;
 using IDBEmit;
 
 namespace consumer
@@ -9,6 +10,7 @@ namespace consumer
     {
         tax10, tax20
     }
+    [MapToController("GoodsCategory",InteractingType.JSON)]
     [ClientStorage("Category")]
     public class GoodsCategory
     {
@@ -16,6 +18,7 @@ namespace consumer
         public int Id {get;set;}
         public string Name {get;set;}
     }
+    [MapToController("Goods",InteractingType.JSON)]
     [ClientStorage]
     public class Goods
     {
@@ -28,6 +31,7 @@ namespace consumer
         public decimal Price {get;set;}
         public VAT VAT {get;set;}
     }
+    [MapToController("GoodsBarcode",InteractingType.JSON)]
     public class GoodsBarcode
     {
         [Key]
