@@ -240,71 +240,119 @@ export class {{classname}} {
         }
         private string ScaffoldDatabase()
         {
-            string res = "type cIndex = {\n" +
-                         "\t name: string," +
-                         "\t path: string," +
-                         "\t unique: boolean\n" +
-                         "}\n\n"; // type ts for index
-            // create object store with indexes
-            res += "const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {\n"+
-                   "\t let a;\n" +
-                   "\t if (!db.objectStoreNames.contains(name)) {\n" +
-                   "\t       db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
-                   "\t } else {\n" +
-                   "\t    a = dbReq.transaction.objectStore(name); \n" +
-                   "\t }\n" +
-                   "\t indexes.map(v => {\n" +
-                   "\t   if (!a.indexNames.contains(v.name)){\n" +
-                   "\t a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
-                   "\t  }"+
-                   "}\n\n";
-            res += "const datasets = [\n";
-            string res1 ="";
-            foreach(var p in _injectedTypes)
-            {
-                res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1;
-                if (_indexes.ContainsKey(p.Key))
-                {
-                    res1 += ",\n  indexes: [\n";
-                    foreach(var i in _indexes[p.Key])
-                    {
-                        res1 += "\t{ name: " + i.Key + ", path: " + i.Key + ", unique: " + i.Value.ToString().ToLowerInvariant() + "}\n" ;
+            string output =
+@"type cIndex = {
+    name: string,
+    path: string,
+    unique: boolean
+}
 
-                    }
-                    res1 += "]\n";
-                }
-                res1 += "},\n";
-            }
-            res1 = res1.Substring(0, res1.Length - 2) + "\n";
+const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {
+    let objectStore;
+    if (!db.objectStoreNames.contains(name)) {
+        objectStore = db.createObjectStore(name, { keyPath: key, autoincrement: false})
+    } else {
+        db.deleteObjectStore(name)
+        objectStore = db.createObjectStore(name, { keyPath: key, autoincrement: false})
+    }
+    if (indexes) {
+        indexes.map(v => {
+            objectStore.createIndex(v.name, v.path, {unique: v.unique}))
+        })
+    }
+}
 
-            res += res1 + "]\n\n";
-            res += "const createDatabase = (db: IDBDatabase) => {\n"+
-                   "\t datasets.map(v => createStore(db, v.name, v.key, v.indexes)\n" +
-                   "}\n\n";
-            res += "export const database = (name: string, version: number): IDBDatabase => {\n"+
-                   "\t const dbRequest = indexedDB.open( name, version)\n" +
-                   "\t let db = dbReq.result\n" +
-                   "\t dbRequest.onupgradeneeded = ( ev ) => {\n" +
-                   "\t db = (ev.target as IDBOpenDBRequest).result\n" +
-                   "\t   createDatabase((ev.target as IDBOpenDBRequest).result)\n"+
-                   "\t}\n" +
-                   "\t dbRequest.onsuccess = (ev) => {\n db = (ev.target as IDBOpenDBRequest).result\n}\n" +
-                   "\t dbRequest.onerror = (ev) => {}\n" +
-                   "\t return db\n" +
-                   "}\n\n";
-            res +=  "export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {\n"+
-                    "\t const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()\n" +
-                    "\t  let tx = db.transaction([storeName], 'readwrite')\n" +
-                    "\t  let store = tx.objectStore(storeName)\n" +
-                    "\t  if (Array.isArray(message)) {\n" +
-                    "\t     message.map(v => store.add(v))\n" +
-                    "\t } else {\n" +
-                    "\t      store.add(message)\n" +
-                    "\t  }\n" +
-                    "\t  tx.oncomplete = () => {}\n"+
-                    "\t  tx.onerror = (event) => {}\n"+
-                    "\t}\n";
-            return res;
+const datasets = [
+    {{datasets}}
+]
+
+const createDatabase = (db: IDBDatabase) => {
+    datasets.map(v => createStore(db, v.name, v.key, v.indexes)
+}
+
+export const database = (name: string, version: number): IDBDatabase => {
+
+const dbRequest = indexedDB.open( name, version)
+    let db = dbReq.result
+    dbRequest.onupgradeneeded = ( ev ) => {
+        db = (ev.target as IDBOpenDBRequest).result
+        createDatabase((ev.target as IDBOpenDBRequest).result)
+    }
+    dbRequest.onsuccess = (ev) => {
+        db = (ev.target as IDBOpenDBRequest).result
+    }
+    dbRequest.onerror = (ev) => {
+
+    }
+    return db
+}
+
+";
+            // string res = "type cIndex = {\n" +
+            //              "\t name: string," +
+            //              "\t path: string," +
+            //              "\t unique: boolean\n" +
+            //              "}\n\n"; // type ts for index
+            // // create object store with indexes
+            // res += "const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {\n"+
+            //        "\t let a;\n" +
+            //        "\t if (!db.objectStoreNames.contains(name)) {\n" +
+            //        "\t       db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
+            //        "\t } else {\n" +
+            //        "\t    a = dbReq.transaction.objectStore(name); \n" +
+            //        "\t }\n" +
+            //        "\t indexes.map(v => {\n" +
+            //        "\t   if (!a.indexNames.contains(v.name)){\n" +
+            //        "\t a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
+            //        "\t  }"+
+            //        "}\n\n";
+            // res += "const datasets = [\n";
+            // string res1 ="";
+            // foreach(var p in _injectedTypes)
+            // {
+            //     res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1;
+            //     if (_indexes.ContainsKey(p.Key))
+            //     {
+            //         res1 += ",\n  indexes: [\n";
+            //         foreach(var i in _indexes[p.Key])
+            //         {
+            //             res1 += "\t{ name: " + i.Key + ", path: " + i.Key + ", unique: " + i.Value.ToString().ToLowerInvariant() + "}\n" ;
+
+            //         }
+            //         res1 += "]\n";
+            //     }
+            //     res1 += "},\n";
+            // }
+            // res1 = res1.Substring(0, res1.Length - 2) + "\n";
+
+            // res += res1 + "]\n\n";
+            // res += "const createDatabase = (db: IDBDatabase) => {\n"+
+            //        "\t datasets.map(v => createStore(db, v.name, v.key, v.indexes)\n" +
+            //        "}\n\n";
+            // res += "export const database = (name: string, version: number): IDBDatabase => {\n"+
+            //        "\t const dbRequest = indexedDB.open( name, version)\n" +
+            //        "\t let db = dbReq.result\n" +
+            //        "\t dbRequest.onupgradeneeded = ( ev ) => {\n" +
+            //        "\t db = (ev.target as IDBOpenDBRequest).result\n" +
+            //        "\t   createDatabase((ev.target as IDBOpenDBRequest).result)\n"+
+            //        "\t}\n" +
+            //        "\t dbRequest.onsuccess = (ev) => {\n db = (ev.target as IDBOpenDBRequest).result\n}\n" +
+            //        "\t dbRequest.onerror = (ev) => {}\n" +
+            //        "\t return db\n" +
+            //        "}\n\n";
+            // res +=  "export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {\n"+
+            //         "\t const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()\n" +
+            //         "\t  let tx = db.transaction([storeName], 'readwrite')\n" +
+            //         "\t  let store = tx.objectStore(storeName)\n" +
+            //         "\t  if (Array.isArray(message)) {\n" +
+            //         "\t     message.map(v => store.add(v))\n" +
+            //         "\t } else {\n" +
+            //         "\t      store.add(message)\n" +
+            //         "\t  }\n" +
+            //         "\t  tx.oncomplete = () => {}\n"+
+            //         "\t  tx.onerror = (event) => {}\n"+
+            //         "\t}\n";
+            return output;
 
         }
         /// <summary>
