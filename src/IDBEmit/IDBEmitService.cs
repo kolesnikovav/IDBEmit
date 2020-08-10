@@ -61,6 +61,8 @@ namespace IDBEmit
         private static  Type ClientStorageAttributeType = typeof(ClientStorageAttribute);
         private static  Type ClientIndexAttributeType = typeof(ClientIndexAttribute);
         private static Type KeyAttributeType = typeof(KeyAttribute);
+
+        private static Type DisplayAttributeType = typeof(DisplayAttribute);
         private static  Type MapToControllerAttributeType = typeof(MapToControllerAttribute);
 
         private void EnsurePathExists(string path)
@@ -120,7 +122,8 @@ namespace IDBEmit
         private string ScaffoldTypeToTypescript(Type entityType)
         {
             string source =
-@"{{import}}
+@"
+{{import}}
 export class {{classname}} {
     {{fields}}
     public static async FetchGet (page?: number, size?: number, sort?: string, sortdirection?: boolean, filter?: string ): Promise<{{classname}}|{{classname}}[]|string> {
@@ -202,9 +205,13 @@ export class {{classname}} {
             bool isFirst = true;
             foreach(var p in entityType.GetProperties())
              {
+                 string textName = p.Name;
+                 DisplayAttribute display = p.GetCustomAttribute(DisplayAttributeType) as DisplayAttribute;
+                 if (display != null) textName = display.Name;
+
                  bool isKey = _entityKeys.ContainsKey(p.PropertyType) && _entityKeys[p.PropertyType].Item1 == p.Name;
                  fields += ((isFirst) ? "" : "    ") + "public " + p.Name +  ((isKey) ? "" : "?") + " : " + ConvertToTsType(p.PropertyType) + "\n";
-                 headers += "      { text : " + p.Name + ", value : " + p.Name + "},\n";
+                 headers += "      { text : '" + textName + "', value : " + p.Name + "},\n";
                  isFirst = false;
              };
             headers = headers.Substring(0, headers.Length -2);
