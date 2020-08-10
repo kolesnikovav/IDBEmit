@@ -136,17 +136,21 @@ export class {{classname}} {
         return await response.json()
     }
 
-    public static async FetchGetCount (filter?: string ): number {
+    public static FetchGetCount (filter?: string ): number|string {
         const searchParams = new URLSearchParams()
         if (filter) searchParams.append('filter', filter)
         const url = new URL('{{backendCount}}')
-        const response = await fetch(url.toString())
-        return  Number.parse(response.body)
+        let res: number|string = 0
+        fetch(url.toString()).then(r => {
+            r.text()
+            .then(n => {res = Number.parseInt(n)})
+        }).catch(err =>  res = err)
+        return  res
     }
 
     public static async FetchPost (data: {{classname}}|{{classname}}[] ): Promise<{{classname}}|{{classname}}[]|string> {
         const url = new URL('{{backendSave}}')
-        const response = await fetch(url, {
+        const response = await fetch(url.toString(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -179,6 +183,12 @@ export class {{classname}} {
         })
         return await response.json()
     }
+
+    public static Headers (): any[] => {
+        return [
+{{headers}}
+        ]
+    }
 }
 ";
             string import = "";
@@ -188,19 +198,23 @@ export class {{classname}} {
                 import += _importDirectives[r] + "\n";
             }
             string fields = "";
+            string headers = "";
             bool isFirst = true;
             foreach(var p in entityType.GetProperties())
              {
                  bool isKey = _entityKeys.ContainsKey(p.PropertyType) && _entityKeys[p.PropertyType].Item1 == p.Name;
                  fields += ((isFirst) ? "" : "    ") + "public " + p.Name +  ((isKey) ? "" : "?") + " : " + ConvertToTsType(p.PropertyType) + "\n";
+                 headers += "      { text : " + p.Name + ", value : " + p.Name + "},\n";
                  isFirst = false;
              };
+            headers = headers.Substring(0, headers.Length -2);
             string cname = Utils.NormalizedName(entityType.ToString());
 
             var template = Handlebars.Compile(source);
             var data = new
             {
                 fields = fields,
+                headers = headers,
                 import = import,
                 classname = cname,
                 backend = _backendRoutes[entityType]["GET"],
@@ -269,10 +283,7 @@ const datasets = [
 const createDatabase = (db: IDBDatabase) => {
     datasets.map(v => createStore(db, v.name, v.key, v.indexes)
 }
-
-export const database = (name: string, version: number): IDBDatabase => {
-
-const dbRequest = indexedDB.open( name, version)
+const dbRequest = indexedDB.open( name, version): IDBDatabase
     let db = dbReq.result
     dbRequest.onupgradeneeded = ( ev ) => {
         db = (ev.target as IDBOpenDBRequest).result
@@ -286,72 +297,18 @@ const dbRequest = indexedDB.open( name, version)
     }
     return db
 }
-
-";
-            // string res = "type cIndex = {\n" +
-            //              "\t name: string," +
-            //              "\t path: string," +
-            //              "\t unique: boolean\n" +
-            //              "}\n\n"; // type ts for index
-            // // create object store with indexes
-            // res += "const createStore = (db: IDBDatabase, name: string, key: string, indexes?: cIndex[]) => {\n"+
-            //        "\t let a;\n" +
-            //        "\t if (!db.objectStoreNames.contains(name)) {\n" +
-            //        "\t       db.createObjectStore(name, { keyPath: key, autoincrement: false})\n" +
-            //        "\t } else {\n" +
-            //        "\t    a = dbReq.transaction.objectStore(name); \n" +
-            //        "\t }\n" +
-            //        "\t indexes.map(v => {\n" +
-            //        "\t   if (!a.indexNames.contains(v.name)){\n" +
-            //        "\t a.createIndex(v.name, v.path, {unique: v.unique}))\n" +
-            //        "\t  }"+
-            //        "}\n\n";
-            // res += "const datasets = [\n";
-            // string res1 ="";
-            // foreach(var p in _injectedTypes)
-            // {
-            //     res1 += "{ name: " + Utils.NormalizedName(p.Key.ToString()) + ",\n  key: " + _entityKeys[p.Key].Item1;
-            //     if (_indexes.ContainsKey(p.Key))
-            //     {
-            //         res1 += ",\n  indexes: [\n";
-            //         foreach(var i in _indexes[p.Key])
-            //         {
-            //             res1 += "\t{ name: " + i.Key + ", path: " + i.Key + ", unique: " + i.Value.ToString().ToLowerInvariant() + "}\n" ;
-
-            //         }
-            //         res1 += "]\n";
-            //     }
-            //     res1 += "},\n";
-            // }
-            // res1 = res1.Substring(0, res1.Length - 2) + "\n";
-
-            // res += res1 + "]\n\n";
-            // res += "const createDatabase = (db: IDBDatabase) => {\n"+
-            //        "\t datasets.map(v => createStore(db, v.name, v.key, v.indexes)\n" +
-            //        "}\n\n";
-            // res += "export const database = (name: string, version: number): IDBDatabase => {\n"+
-            //        "\t const dbRequest = indexedDB.open( name, version)\n" +
-            //        "\t let db = dbReq.result\n" +
-            //        "\t dbRequest.onupgradeneeded = ( ev ) => {\n" +
-            //        "\t db = (ev.target as IDBOpenDBRequest).result\n" +
-            //        "\t   createDatabase((ev.target as IDBOpenDBRequest).result)\n"+
-            //        "\t}\n" +
-            //        "\t dbRequest.onsuccess = (ev) => {\n db = (ev.target as IDBOpenDBRequest).result\n}\n" +
-            //        "\t dbRequest.onerror = (ev) => {}\n" +
-            //        "\t return db\n" +
-            //        "}\n\n";
-            // res +=  "export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {\n"+
-            //         "\t const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()\n" +
-            //         "\t  let tx = db.transaction([storeName], 'readwrite')\n" +
-            //         "\t  let store = tx.objectStore(storeName)\n" +
-            //         "\t  if (Array.isArray(message)) {\n" +
-            //         "\t     message.map(v => store.add(v))\n" +
-            //         "\t } else {\n" +
-            //         "\t      store.add(message)\n" +
-            //         "\t  }\n" +
-            //         "\t  tx.oncomplete = () => {}\n"+
-            //         "\t  tx.onerror = (event) => {}\n"+
-            //         "\t}\n";
+export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {
+const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()
+let tx = db.transaction([storeName], 'readwrite')
+let store = tx.objectStore(storeName)
+if (Array.isArray(message)) {
+    message.map(v => store.add(v))
+} else {
+    store.add(message)
+}
+   tx.oncomplete = () => {}
+   tx.onerror = (event) => {}
+}";
             return output;
 
         }
