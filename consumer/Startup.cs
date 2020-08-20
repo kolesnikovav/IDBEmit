@@ -29,7 +29,7 @@ namespace consumer
         {
             services.AddDbContext<ApplicationDBContext>(options =>
                 options.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddAutoController<ApplicationDBContext>();
+            services.AddAutoController<ApplicationDBContext>(DatabaseTypes.SQLite, Configuration.GetConnectionString("DefaultConnection"));
 
         }
 
@@ -40,8 +40,7 @@ namespace consumer
             {
                 app.UseDeveloperExceptionPage();
             }
-            string c = "DataSource=app.db";
-            app.UseAutoController<ApplicationDBContext>("api",true,DatabaseTypes.SQLite,c,InteractingType.JSON,"/","/");
+            app.UseAutoController<ApplicationDBContext>("api",true,InteractingType.JSON,"/","/");
             var service = (AutoRouterService<ApplicationDBContext>)app.ApplicationServices.GetService(typeof(AutoRouterService<ApplicationDBContext>));
             var opt = (IAutoControllerOptions)service.Options;
             app.UseIDBEmitter<ApplicationDBContext>("clientDB", Path.Combine(Directory.GetCurrentDirectory(), "clientapp"), opt);
