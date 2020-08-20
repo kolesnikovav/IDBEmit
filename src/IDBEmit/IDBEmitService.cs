@@ -290,34 +290,62 @@ const datasets = [
 const createDatabase = (db: IDBDatabase) => {
     datasets.map(v => createStore(db, v.name, v.key, v.indexes)
 }
-const dbRequest = indexedDB.open( name, version): IDBDatabase
+const dbRequest = indexedDB.open( name, version): IDBDatabase | string
     let db = dbReq.result
     dbRequest.onupgradeneeded = ( ev ) => {
         db = (ev.target as IDBOpenDBRequest).result
         createDatabase((ev.target as IDBOpenDBRequest).result)
+        return db
     }
     dbRequest.onsuccess = (ev) => {
         db = (ev.target as IDBOpenDBRequest).result
+        return db
     }
     dbRequest.onerror = (ev) => {
-
+        return ev.toString()
     }
     return db
 }
 export const addToDatabase = <T>(db: IDBDatabase,message: T|T[]) => {
-const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()
-let tx = db.transaction([storeName], 'readwrite')
-let store = tx.objectStore(storeName)
-if (Array.isArray(message)) {
-    message.map(v => store.add(v))
-} else {
-    store.add(message)
+    const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()
+    let tx = db.transaction([storeName], 'readwrite')
+    let store = tx.objectStore(storeName)
+    if (Array.isArray(message)) {
+      message.map(v => store.add(v))
+    } else {
+      store.add(message)
+    }
+    tx.oncomplete = () => {}
+    tx.onerror = (event) => {}
 }
-   tx.oncomplete = () => {}
-   tx.onerror = (event) => {}
-}";
-            return output;
+export const deleteFromDatabase = <T>(db: IDBDatabase,message: T|T[]) => {
+    const storeName = (Array.isArray(message) ? typeof message[0] : typeof message).toString()
+    let tx = db.transaction([storeName], 'readwrite')
+    let store = tx.objectStore(storeName)
+    if (Array.isArray(message)) {
+      message.map(v => store.delete(v))
+    } else {
+      store.delete(message)
+    }
+    tx.oncomplete = () => {}
+    tx.onerror = (event) => {}
+}
 
+
+";
+
+            string datasets = "";
+            foreach (var r in _injectedTypes)
+            {
+                datasets += (String.IsNullOrWhiteSpace(r.Value.StorageName) ? Utils.NormalizedName(r.Key.ToString()) :  r.Value.StorageName) + ",\n";
+            }
+            datasets = datasets.Substring(0,datasets.Length - 2) + "\n";
+            var template = Handlebars.Compile(output);
+            var data = new
+            {
+                datasets = datasets
+            };
+            return template(data);
         }
         /// <summary>
         /// Clear internal data when it no nessesary

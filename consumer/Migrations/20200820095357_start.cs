@@ -2,7 +2,7 @@
 
 namespace consumer.Migrations
 {
-    public partial class test1 : Migration
+    public partial class start : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {

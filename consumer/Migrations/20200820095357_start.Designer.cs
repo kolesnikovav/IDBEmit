@@ -9,14 +9,14 @@ using consumer;
 namespace consumer.Migrations
 {
     [DbContext(typeof(ApplicationDBContext))]
-    [Migration("20200807094508_test1")]
-    partial class test1
+    [Migration("20200820095357_start")]
+    partial class start
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "3.1.6");
+                .HasAnnotation("ProductVersion", "3.1.7");
 
             modelBuilder.Entity("consumer.Goods", b =>
                 {
